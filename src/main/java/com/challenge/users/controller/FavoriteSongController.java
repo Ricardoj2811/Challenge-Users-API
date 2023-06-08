@@ -1,6 +1,7 @@
 package com.challenge.users.controller;
 
 import com.challenge.users.domain.FavoriteSong;
+import com.challenge.users.domain.dto.FavoriteSongRequest;
 import com.challenge.users.repository.FavoriteSongRepository;
 import com.challenge.users.security.domain.User;
 import com.challenge.users.security.repository.UserRepository;
@@ -71,19 +72,23 @@ public class FavoriteSongController {
     }
 
     @PostMapping("/add-favorite")
-    public ResponseEntity<?> addFavoriteSong(@RequestParam("userId") Integer userId, @RequestParam("trackId") String trackId) {
+    public ResponseEntity<?> addFavoriteSong(@RequestBody FavoriteSongRequest request) {
+        FavoriteSongRequest newRequest = FavoriteSongRequest.builder()
+                .userId(request.getUserId())
+                .trackId(request.getTrackId())
+                .build();
         try {
-            Optional<User> optionalUser = userRepository.findById(userId);
+            Optional<User> optionalUser = userRepository.findById(request.getUserId());
             if (optionalUser.isEmpty()) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found");
             }
 
-            if (spotifyService.favoriteSongExistsByUserIdAndTrackId(userId, trackId)) {
+            if (spotifyService.favoriteSongExistsByUserIdAndTrackId(request.getUserId(), newRequest.getTrackId())) {
                 return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Song already exists in favorites");
             }
 
             String accessToken = spotifyService.getSpotifyAccessToken(clientId, clientSecret);
-            String url = "https://api.spotify.com/v1/tracks/" + trackId;
+            String url = "https://api.spotify.com/v1/tracks/" + newRequest.getTrackId();
             HttpHeaders headers = new HttpHeaders();
             headers.setBearerAuth(accessToken);
             HttpEntity<String> entity = new HttpEntity<>(headers);
@@ -91,7 +96,7 @@ public class FavoriteSongController {
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
             String responseBody = response.getBody();
 
-            FavoriteSong favoriteSong = spotifyService.parseFavoriteSong(responseBody, userId);
+            FavoriteSong favoriteSong = spotifyService.parseFavoriteSong(responseBody, newRequest.getUserId());
 
 
             favoriteSongRepository.save(favoriteSong);
